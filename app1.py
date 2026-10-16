@@ -76,8 +76,7 @@ with tab1:
         Thông tin tài chính:
         - Tổng số dư: {current_balance:,.0f} VNĐ
         - Số ngày chi tiêu: {target_days} ngày
-        - Hóa đơn bổ sung: {receipt_context}
-        
+        - Hóa đơn bổ sung: {receipt_context}  
         QUY TẮC BẮT BUỘC:
         - Bạn CHỈ ĐƯỢC PHÉP hỗ trợ các vấn đề về tiền bạc, tài chính, chi tiêu và tiết kiệm.
         - Nếu sinh viên hỏi sang chủ đề khác (như lịch học, thời gian biểu, giải trí, nấu ăn...), hãy từ chối lịch sự bằng câu đại ý: "Xin lỗi, ở tab này mình chỉ hỗ trợ bạn về vấn đề tiền 	bạc và tài chính thôi nhé!"
