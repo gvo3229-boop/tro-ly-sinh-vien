@@ -169,7 +169,7 @@ with tab2:
                 st.text_area("Thông tin trích xuất từ ảnh:", value=schedule_data, height=150)
 
     # Nút bắt đầu trò chuyện 1-1 cho Lịch học
-   if "finance_messages" not in st.session_state:
+  if "finance_messages" not in st.session_state:
         st.session_state.finance_messages = []
         initial_prompt = f"""
         Bạn là một chuyên gia tư vấn tài chính cá nhân 1-1 thân thiện dành cho sinh viên. 
