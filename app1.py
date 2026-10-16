@@ -44,7 +44,7 @@ with tab1:
     with col1:
         current_balance = st.number_input("Nhập số dư hiện có (VNĐ):", min_value=0, value=1000000, step=50000, key="bal_1")
     with col2:
-        target_days = st.number_input("Số ngày cần chi tiêu (Ví dụ: 15, 30 ngày):", min_value=1, value=30, step=1, key="days_1")
+        target_days = st.number_input("Số ngày cần chi tiêu:", min_value=1, value=30, step=1, key="days_1")
         
     uploaded_file = st.file_uploader("Tải lên ảnh hóa đơn tham khảo (Không bắt buộc)...", type=["jpg", "png", "jpeg"], key="file_1")
     
@@ -53,9 +53,8 @@ with tab1:
         image = Image.open(uploaded_file)
         st.image(image, caption='Hóa đơn đã tải lên', use_column_width=True)
         
-        with st.spinner("Qwen 3.8 đang đọc hóa đơn..."):
-            import io
-            buffered = io.BytesIO()
+        with st.spinner("AI đang đọc hóa đơn..."):
+            buffered = __import__("io").BytesIO()
             image.save(buffered, format="JPEG")
             img_str = base64.b64encode(buffered.getvalue()).decode()
             
@@ -66,20 +65,22 @@ with tab1:
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_str}"}}
                 ]
             }]
-            receipt_context = call_qwen_groq(payload)
+            receipt_context = call_groq_ai(payload)
             st.info(f"Kết quả đọc hóa đơn: {receipt_context}")
 
-   if "finance_messages" not in st.session_state:
+    # --- KHỐI KHỞI TẠO CHAT 1-1 TÀI CHÍNH (ĐÃ FIX LỖI THỤT LỀ & LẶP LỆNH) ---
+    if "finance_messages" not in st.session_state:
         st.session_state.finance_messages = []
         initial_prompt = f"""
         Bạn là một chuyên gia tư vấn tài chính cá nhân 1-1 thân thiện dành cho sinh viên. 
         Thông tin tài chính:
         - Tổng số dư: {current_balance:,.0f} VNĐ
         - Số ngày chi tiêu: {target_days} ngày
-        - Hóa đơn bổ sung: {receipt_context}  
+        - Hóa đơn bổ sung: {receipt_context}
+        
         QUY TẮC BẮT BUỘC:
         - Bạn CHỈ ĐƯỢC PHÉP hỗ trợ các vấn đề về tiền bạc, tài chính, chi tiêu và tiết kiệm.
-        - Nếu sinh viên hỏi sang chủ đề khác (như lịch học, thời gian biểu, giải trí, nấu ăn...), hãy từ chối lịch sự bằng câu đại ý: "Xin lỗi, ở tab này mình chỉ hỗ trợ bạn về vấn đề tiền 	bạc và tài chính thôi nhé!"
+        - Nếu sinh viên hỏi sang chủ đề khác (như lịch học, thời gian biểu, giải trí, nấu ăn...), hãy từ chối lịch sự bằng câu đại ý: "Xin lỗi, ở tab này mình chỉ hỗ trợ bạn về vấn đề tiền bạc và tài chính thôi nhé!"
         
         Hãy chào sinh viên ngắn gọn và đưa ra cái nhìn tổng quan ban đầu cùng hạn mức chi tiêu trung bình mỗi ngày.
         """
@@ -87,33 +88,29 @@ with tab1:
         with st.spinner("Đang kết nối với Trợ lý tài chính..."):
             initial_reply = call_groq_ai(st.session_state.finance_messages)
             st.session_state.finance_messages.append({"role": "assistant", "content": initial_reply})
-        st.session_state.finance_messages.append({"role": "user", "content": initial_prompt})
-        with st.spinner("Đang kết nối với Trợ lý tài chính..."):
-            initial_reply = call_qwen_groq(st.session_state.finance_messages)
-            st.session_state.finance_messages.append({"role": "assistant", "content": initial_reply})
 
+    # Hiển thị lịch sử chat
     for message in st.session_state.finance_messages[1:]:
         with st.chat_message(message["role"]):
             content = message["content"]
             if isinstance(content, list):
-                # Hiển thị phần text nếu nội dung là dạng multimodal payload
                 for c in content:
                     if c.get("type") == "text":
                         st.write(c.get("text"))
             else:
                 st.write(content)
 
+    # Ô nhập câu hỏi của người dùng
     if user_query := st.chat_input("Nhập câu hỏi hoặc thắc mắc về tài chính...", key="chat_fin_input"):
         with st.chat_message("user"):
             st.write(user_query)
         st.session_state.finance_messages.append({"role": "user", "content": user_query})
 
         with st.spinner("Trợ lý đang trả lời..."):
-            ai_response = call_qwen_groq(st.session_state.finance_messages)
+            ai_response = call_groq_ai(st.session_state.finance_messages)
             with st.chat_message("assistant"):
                 st.write(ai_response)
             st.session_state.finance_messages.append({"role": "assistant", "content": ai_response})
-
 # --- TAB 2: QUẢN LÝ THỜI GIAN 1-1 ---
 with tab2:
     st.header("Lên lịch trình thông minh & Tư vấn 1-1")
