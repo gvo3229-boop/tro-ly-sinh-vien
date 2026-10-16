@@ -1,0 +1,213 @@
+import streamlit as st
+from PIL import Image
+import requests
+import json
+import base64
+import io
+
+# --- CẤU HÌNH API KEY TRỰC TIẾP (CÔNG KHAI) ---
+# Bạn hãy thay thế chuỗi bên dưới bằng Groq API Key thật của bạn
+GROQ_API_KEY = "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" 
+
+st.set_page_config(page_title="Trợ lý Sinh viên", page_icon="🎓", layout="wide")
+
+st.title("🎓 Trợ lý Sinh viên: Quản lý Thời gian & Tài chính 1-1")
+st.write("Ứng dụng thông minh hỗ trợ sinh viên quy hoạch tài chính và thời khóa biểu trực tiếp.")
+
+tab1, tab2 = st.tabs(["💰 Quản lý Tài chính", "⏰ Quản lý Thời gian & Lịch học"])
+
+# Hàm gọi Groq API chung cho cả 2 tab (giới hạn max_tokens = 800 để tránh lỗi 429)
+def call_groq_ai(messages_payload):
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "qwen/qwen3.8-27b",
+        "messages": messages_payload,
+        "temperature": 0.3,
+        "max_tokens": 800
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(data), timeout=60)
+        if response.status_code == 200:
+            res_json = response.json()
+            return res_json['choices'][0]['message']['content']
+        elif response.status_code == 429:
+            return "⚠️ Hệ thống đang quá tải tạm thời (vượt giới hạn token). Vui lòng đợi 10-15 giây rồi gửi lại tin nhắn nhé!"
+        else:
+            return f"Lỗi từ máy chủ API ({response.status_code}): {response.text}"
+    except Exception as e:
+        return f"Lỗi kết nối mạng: {str(e)}"
+
+# ==========================================
+# --- TAB 1: QUẢN LÝ TÀI CHÍNH 1-1 ---
+# ==========================================
+with tab1:
+    st.header("Quy hoạch tài chính cá nhân & Tư vấn 1-1")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        current_balance = st.number_input("Nhập số dư hiện có (VNĐ):", min_value=0, value=1000000, step=50000, key="bal_1")
+    with col2:
+        target_days = st.number_input("Số ngày cần chi tiêu:", min_value=1, value=30, step=1, key="days_1")
+        
+    uploaded_file = st.file_uploader("Tải lên ảnh hóa đơn tham khảo (Không bắt buộc)...", type=["jpg", "png", "jpeg"], key="file_1")
+    
+    receipt_context = "Không có hóa đơn cụ thể được tải lên."
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
+        st.image(image, caption='Hóa đơn đã tải lên', use_column_width=True)
+        
+        with st.spinner("AI đang đọc hóa đơn..."):
+            buffered = io.BytesIO()
+            image.save(buffered, format="JPEG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            payload = [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Hãy trích xuất số tiền, tên món hàng và tổng kết chi tiêu từ hóa đơn này:"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_str}"}}
+                ]
+            }]
+            receipt_context = call_groq_ai(payload)
+            st.info(f"Kết quả đọc hóa đơn: {receipt_context}")
+
+    if "finance_messages" not in st.session_state:
+        st.session_state.finance_messages = []
+        initial_prompt = f"""
+        Bạn là một chuyên gia tư vấn tài chính cá nhân 1-1 thân thiện dành cho sinh viên. 
+        Thông tin tài chính:
+        - Tổng số dư: {current_balance:,.0f} VNĐ
+        - Số ngày chi tiêu: {target_days} ngày
+        - Hóa đơn bổ sung: {receipt_context}
+        
+        QUY TẮC BẮT BUỘC & ĐIỀU HƯỚNG:
+        - Bạn CHỈ ĐƯỢC PHÉP hỗ trợ các vấn đề về tiền bạc, tài chính, chi tiêu, ngân sách và tiết kiệm.
+        - Nếu sinh viên cố ý hỏi sang chủ đề khác (như lịch học, thời gian biểu, bài tập, giải trí,...), bạn PHẢI từ chối lịch sự, giữ vững lập trường và **chuyển hướng** họ sang tab "Quản lý Thời gian & Lịch học" với câu đại ý: "Xin lỗi, ở tab này mình chỉ chuyên hỗ trợ về tài chính thôi nhé! Bạn hãy chuyển sang tab 'Quản lý Thời gian & Lịch học' bên cạnh để được hỗ trợ về lịch trình nha."
+        
+        Hãy chào sinh viên ngắn gọn và đưa ra cái nhìn tổng quan ban đầu cùng hạn mức chi tiêu trung bình mỗi ngày.
+        """
+        st.session_state.finance_messages.append({"role": "user", "content": initial_prompt})
+        with st.spinner("Đang kết nối với Trợ lý tài chính..."):
+            initial_reply = call_groq_ai(st.session_state.finance_messages)
+            st.session_state.finance_messages.append({"role": "assistant", "content": initial_reply})
+
+    for message in st.session_state.finance_messages[1:]:
+        with st.chat_message(message["role"]):
+            content = message["content"]
+            if isinstance(content, list):
+                for c in content:
+                    if c.get("type") == "text":
+                        st.write(c.get("text"))
+            else:
+                st.write(content)
+
+    if user_query := st.chat_input("Nhập câu hỏi hoặc thắc mắc về tài chính...", key="chat_fin_input"):
+        with st.chat_message("user"):
+            st.write(user_query)
+        st.session_state.finance_messages.append({"role": "user", "content": user_query})
+
+        with st.spinner("Trợ lý đang trả lời..."):
+            ai_response = call_groq_ai(st.session_state.finance_messages)
+            with st.chat_message("assistant"):
+                st.write(ai_response)
+            st.session_state.finance_messages.append({"role": "assistant", "content": ai_response})
+
+# ==========================================
+# --- TAB 2: QUẢN LÝ THỜI GIAN 1-1 ---
+# ==========================================
+with tab2:
+    st.header("Lên lịch trình thông minh & Tư vấn 1-1")
+    
+    option = st.radio(
+        "Chọn cách nhập lịch học:", 
+        ["Nhập văn bản thủ công", "Tải lên file lịch (.ics, .csv, .txt)", "📸 Tải lên ảnh Thời khóa biểu (JPG, PNG)"], 
+        key="opt_2"
+    )
+    schedule_data = ""
+    
+    if option == "Nhập văn bản thủ công":
+        schedule_data = st.text_area("Nhập lịch học hoặc deadline của bạn:", key="txt_2")
+        
+    elif option == "Tải lên file lịch (.ics, .csv, .txt)":
+        uploaded_schedule_file = st.file_uploader("Tải lên file lịch học", type=["txt", "csv", "ics"], key="file_2")
+        if uploaded_schedule_file is not None:
+            try:
+                raw_text = uploaded_schedule_file.getvalue().decode("utf-8", errors="ignore")
+                schedule_data = raw_text[:4000]
+                st.info("Đã xử lý file thành công!")
+            except Exception as e:
+                st.error(f"Không thể đọc file này: {e}")
+
+    else:
+        uploaded_img = st.file_uploader("Tải lên ảnh Thời khóa biểu của bạn...", type=["jpg", "png", "jpeg"], key="img_schedule")
+        if uploaded_img is not None:
+            image = Image.open(uploaded_img)
+            st.image(image, caption='Ảnh thời khóa biểu đã tải lên', use_column_width=True)
+            
+            with st.spinner("AI đang đọc thông tin từ ảnh Thời khóa biểu..."):
+                buffered = io.BytesIO()
+                image.save(buffered, format="JPEG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                
+                payload = [{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Hãy đọc và trích xuất lại toàn bộ thông tin môn học, thứ, ngày, giờ học, phòng học từ ảnh thời khóa biểu này thành dạng văn bản rõ ràng:"},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_str}"}}
+                    ]
+                }]
+                schedule_data = call_groq_ai(payload)
+                st.success("Đã quét thành công Thời khóa biểu từ ảnh!")
+                st.text_area("Thông tin trích xuất từ ảnh:", value=schedule_data, height=150)
+
+    if st.button("🚀 Bắt đầu trò chuyện & Lên thời gian biểu", key="btn_start_time"):
+        if not schedule_data.strip():
+            st.warning("Vui lòng nhập lịch, tải file hoặc upload ảnh thời khóa biểu trước!")
+        else:
+            initial_time_prompt = f"""
+            Bạn là một trợ lý quản lý thời gian và lập thời gian biểu học tập chuyên nghiệp 1-1 dành cho sinh viên.
+            Lịch học của sinh viên:
+            {schedule_data}
+            
+            QUY TẮC BẮT BUỘC & ĐIỀU HƯỚNG:
+            - Bạn CHỈ ĐƯỢC PHÉP hỗ trợ các vấn đề về thời gian biểu, lịch học, sắp xếp thời gian và nhắc nhở deadline.
+            - Nếu sinh viên cố ý hỏi sang chủ đề khác (như tiền bạc, chi tiêu, quản lý tài chính, mua sắm,...), bạn PHẢI từ chối lịch sự và **chuyển hướng** họ về tab "Quản lý Tài chính" với câu đại ý: "Xin lỗi, ở tab này mình chỉ quản lý thời gian và lịch học thôi nhé! Bạn hãy quay lại tab 'Quản lý Tài chính' để được tư vấn về tiền nong nha."
+            
+            Hãy tổng hợp ngắn gọn các môn học/mốc thời gian quan trọng, đề xuất thời gian biểu khoa học và sẵn sàng giải đáp.
+            """
+            st.session_state.time_messages = [
+                {"role": "user", "content": initial_time_prompt}
+            ]
+            with st.spinner("Trợ lý đang phân tích lịch..."):
+                initial_time_reply = call_groq_ai(st.session_state.time_messages)
+                st.session_state.time_messages.append({"role": "assistant", "content": initial_time_reply})
+
+    if "time_messages" in st.session_state and len(st.session_state.time_messages) > 0:
+        st.write("---")
+        st.subheader("💬 Trò chuyện 1-1 với Trợ lý Lịch học")
+        
+        for message in st.session_state.time_messages[1:]:
+            with st.chat_message(message["role"]):
+                content = message["content"]
+                if isinstance(content, list):
+                    for c in content:
+                        if c.get("type") == "text":
+                            st.write(c.get("text"))
+                else:
+                    st.write(content)
+
+        if time_user_query := st.chat_input("Nhập yêu cầu điều chỉnh lịch trình...", key="chat_time_input"):
+            with st.chat_message("user"):
+                st.write(time_user_query)
+            st.session_state.time_messages.append({"role": "user", "content": time_user_query})
+
+            with st.spinner("Trợ lý đang điều chỉnh thời gian biểu..."):
+                time_ai_response = call_groq_ai(st.session_state.time_messages)
+                with st.chat_message("assistant"):
+                    st.write(time_ai_response)
+                st.session_state.time_messages.append({"role": "assistant", "content": time_ai_response})
