@@ -22,7 +22,7 @@ def call_qwen_groq(messages_payload):
     data = {
         "model": "qwen/qwen3.8-27b",
         "messages": messages_payload,
-        "temperature": 0.5
+        "temperature": 0.5,
 	"max_tokens": 500
     }
     
