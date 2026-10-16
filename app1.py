@@ -69,16 +69,25 @@ with tab1:
             receipt_context = call_qwen_groq(payload)
             st.info(f"Kết quả đọc hóa đơn: {receipt_context}")
 
-    if "finance_messages" not in st.session_state:
+   if "finance_messages" not in st.session_state:
         st.session_state.finance_messages = []
         initial_prompt = f"""
         Bạn là một chuyên gia tư vấn tài chính cá nhân 1-1 thân thiện dành cho sinh viên. 
-        Thông tin tài chính của sinh viên:
+        Thông tin tài chính:
         - Tổng số dư: {current_balance:,.0f} VNĐ
         - Số ngày chi tiêu: {target_days} ngày
-        - Thông tin hóa đơn/chi tiêu bổ sung: {receipt_context}
+        - Hóa đơn bổ sung: {receipt_context}
+        
+        QUY TẮC BẮT BUỘC:
+        - Bạn CHỈ ĐƯỢC PHÉP hỗ trợ các vấn đề về tiền bạc, tài chính, chi tiêu và tiết kiệm.
+        - Nếu sinh viên hỏi sang chủ đề khác (như lịch học, thời gian biểu, giải trí, nấu ăn...), hãy từ chối lịch sự bằng câu đại ý: "Xin lỗi, ở tab này mình chỉ hỗ trợ bạn về vấn đề tiền bạc và tài chính thôi nhé!"
+        
         Hãy chào sinh viên ngắn gọn và đưa ra cái nhìn tổng quan ban đầu cùng hạn mức chi tiêu trung bình mỗi ngày.
         """
+        st.session_state.finance_messages.append({"role": "user", "content": initial_prompt})
+        with st.spinner("Đang kết nối với Trợ lý tài chính..."):
+            initial_reply = call_groq_ai(st.session_state.finance_messages)
+            st.session_state.finance_messages.append({"role": "assistant", "content": initial_reply})
         st.session_state.finance_messages.append({"role": "user", "content": initial_prompt})
         with st.spinner("Đang kết nối với Trợ lý tài chính..."):
             initial_reply = call_qwen_groq(st.session_state.finance_messages)
@@ -164,17 +173,25 @@ with tab2:
                 st.text_area("Thông tin trích xuất từ ảnh:", value=schedule_data, height=150)
 
     # Nút bắt đầu trò chuyện 1-1 cho Lịch học
-    if st.button("🚀 Bắt đầu trò chuyện & Lên thời gian biểu", key="btn_start_time"):
-        if not schedule_data.strip():
-            st.warning("Vui lòng nhập lịch, tải file hoặc upload ảnh thời khóa biểu trước!")
-        else:
-            initial_time_prompt = f"""
-            Bạn là một trợ lý quản lý thời gian và lập thời gian biểu học tập chuyên nghiệp 1-1 dành cho sinh viên.
-            Dưới đây là thông tin thời khóa biểu/lịch học của sinh viên:
-            
-            {schedule_data}
-            
-            Hãy tổng hợp ngắn gọn các môn học/mốc thời gian quan trọng, đề xuất thời gian biểu khoa học (gồm cả giờ tự học và nghỉ ngơi), sau đó sẵn sàng giải đáp và điều chỉnh lịch trình theo yêu cầu tiếp theo của sinh viên.
+   if "finance_messages" not in st.session_state:
+        st.session_state.finance_messages = []
+        initial_prompt = f"""
+        Bạn là một chuyên gia tư vấn tài chính cá nhân 1-1 thân thiện dành cho sinh viên. 
+        Thông tin tài chính:
+        - Tổng số dư: {current_balance:,.0f} VNĐ
+        - Số ngày chi tiêu: {target_days} ngày
+        - Hóa đơn bổ sung: {receipt_context}
+        
+        QUY TẮC BẮT BUỘC:
+        - Bạn CHỈ ĐƯỢC PHÉP hỗ trợ các vấn đề về tiền bạc, tài chính, chi tiêu và tiết kiệm.
+        - Nếu sinh viên hỏi sang chủ đề khác (như lịch học, thời gian biểu, giải trí, nấu ăn...), hãy từ chối lịch sự bằng câu đại ý: "Xin lỗi, ở tab này mình chỉ hỗ trợ bạn về vấn đề tiền bạc và tài chính thôi nhé!"
+        
+        Hãy chào sinh viên ngắn gọn và đưa ra cái nhìn tổng quan ban đầu cùng hạn mức chi tiêu trung bình mỗi ngày.
+        """
+        st.session_state.finance_messages.append({"role": "user", "content": initial_prompt})
+        with st.spinner("Đang kết nối với Trợ lý tài chính..."):
+            initial_reply = call_groq_ai(st.session_state.finance_messages)
+            st.session_state.finance_messages.append({"role": "assistant", "content": initial_reply})
             """
             st.session_state.time_messages = [
                 {"role": "user", "content": initial_time_prompt}
